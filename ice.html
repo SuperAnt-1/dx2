@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Häagen-Dazs Chat</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
+  <style>
+    /* Dark theme with white text */
+    body { font-family:"Helvetica Neue",Arial,sans-serif; background:#121212; color:#fff; display:flex; height:100vh; margin:0; }
+    aside { width:250px; background:#1e1e1e; border-right:1px solid #333; display:flex; flex-direction:column; padding:20px; position:relative; }
+    .brand { font-size:1.5rem; font-weight:bold; margin-bottom:2rem; color:#fff; }
+    nav a { display:block; color:#ccc; text-decoration:none; margin:0.5rem 0; padding:0.5rem; border-radius:6px; background:#2a2a2a; }
+    nav a.active, nav a:hover { background:#3a3a3a; color:#fff; }
+    .sidebar-image { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:100px; opacity:0.9; }
+    main { flex:1; display:flex; flex-direction:column; background:#181818; }
+    header { position:relative; padding:20px; display:flex; justify-content:flex-end; align-items:center; background:#1e1e1e; border-bottom:1px solid #333; }
+    .header-image { position:absolute; top:50%; left:20px; transform:translateY(-50%); width:50px; opacity:0.9; }
+    .avatar { width:32px; height:32px; border-radius:50%; object-fit:cover; }
+    .chat-window { flex:1; padding:20px; overflow-y:auto; background:#121212; }
+    .message { margin-bottom:1.5rem; display:flex; align-items:center; gap:10px; }
+    .message.user { flex-direction:row; justify-content:flex-end; }
+    .message.bot  { flex-direction:row; justify-content:flex-start; }
+    .bubble { max-width:70%; padding:1rem; border-radius:12px; background:#2a2a2a; color:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.5); }
+    .message.user .bubble { background:#333; }
+    footer { padding:10px 20px; background:#1e1e1e; border-top:1px solid #333; display:flex; align-items:center; gap:10px; }
+    footer input { flex:1; padding:10px; border:1px solid #333; border-radius:20px; background:#2a2a2a; color:#fff; outline:none; }
+    footer input::placeholder { color:#888; }
+    footer button { padding:0.6rem 1.2rem; border:none; background:#5c5cff; color:#fff; border-radius:20px; cursor:pointer; }
+    footer button:hover { background:#4a4aff; }
+    .recommendations { margin:1rem 0; }
+    .recommendations strong { display:block; margin-bottom:0.5rem; }
+    .recommendations .item { padding:0.5rem; background:#2a2a2a; margin-top:0.5rem; border-radius:8px; }
+  </style>
+</head>
+<body>
+  <aside>
+    <div class="brand">Ice Cream</div>
+    <nav><a href="#" class="active">Häagen-Dazs</a></nav>
+    <img class="sidebar-image" src="img/icecream-01.png" alt="Ice Cream">
+  </aside>
+  <main>
+    <header>
+      <img class="header-image" src="img/icecream-02.png" alt="Ice Cream">
+      <img class="avatar" src="img/avatar-user.png" alt="User Avatar">
+    </header>
+    <section class="chat-window" id="chat-window">
+      <!-- Messages and recommendations will be inserted here -->
+    </section>
+    <footer>
+      <input type="text" id="input-message" placeholder="Type your message...">
+      <button id="send-btn">Submit</button>
+    </footer>
+  </main>
+  <script>
+    const chatWindow = document.getElementById('chat-window');
+    const input = document.getElementById('input-message');
+    const sendBtn = document.getElementById('send-btn');
+    sendBtn.addEventListener('click', sendChat);
+    input.addEventListener('keypress', e => { if (e.key === 'Enter') sendChat(); });
+
+    function sendChat() {
+      const text = input.value.trim();
+      if (!text) return;
+      // display user message
+      appendMessage(text, 'user');
+      input.value = '';
+      // single API call returns both chat and recommendations
+      fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      })
+      .then(res => res.json())
+      .then(data => {
+        // bot response
+        if (data.type === 'text') appendMessage(data.content, 'bot');
+        else if (data.type === 'image') appendImage(data.content, 'bot');
+        // display recommendations if provided
+        if (data.recommendations) appendRecommendations(data.recommendations);
+      })
+      .catch(console.error)
+      .finally(() => scrollToBottom());
+    }
+
+    function appendMessage(text, sender) {
+      const msg = document.createElement('div');
+      msg.className = `message ${sender}`;
+      if (sender === 'user') {
+        msg.innerHTML = `<div class="bubble">${text}</div><img class="avatar" src="img/avatar-user.png" alt="User Avatar">`;
+      } else {
+        msg.innerHTML = `<img class="avatar" src="img/avatar-bot.png" alt="Bot Avatar"><div class="bubble">${text}</div>`;
+      }
+      chatWindow.appendChild(msg);
+    }
+
+    function appendImage(url, sender) {
+      const msg = document.createElement('div');
+      msg.className = `message ${sender}`;
+      if (sender === 'user') {
+        msg.innerHTML = `<div class="bubble"><img src="${url}" alt="Image"></div><img class="avatar" src="img/avatar-user.png" alt="User Avatar">`;
+      } else {
+        msg.innerHTML = `<img class="avatar" src="img/avatar-bot.png" alt="Bot Avatar"><div class="bubble"><img src="${url}" alt="Image"></div>`;
+      }
+      chatWindow.appendChild(msg);
+    }
+
+    function appendRecommendations(items) {
+      // clear old recommendations
+      document.querySelectorAll('.recommendations').forEach(e => e.remove());
+      const rec = document.createElement('div'); rec.className = 'recommendations';
+      rec.innerHTML = '<strong>Recommendations:</strong>';
+      items.forEach(i => {
+        const it = document.createElement('div'); it.className = 'item'; it.textContent = i;
+        rec.appendChild(it);
+      });
+      chatWindow.appendChild(rec);
+    }
+
+    function scrollToBottom() {
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+  </script>
+</body>
+</html>
+ 
